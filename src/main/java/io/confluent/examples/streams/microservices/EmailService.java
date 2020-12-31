@@ -86,10 +86,21 @@ public class EmailService implements Service {
     //Create the streams/tables for the join
     final KStream<String, Order> orders = builder.stream(ORDERS.name(),
         Consumed.with(ORDERS.keySerde(), ORDERS.valueSerde()));
+
+    // final KStream<String, Payment> payments_original = builder.stream(PAYMENTS.name(),
+    //         Consumed.with(PAYMENTS.keySerde(), PAYMENTS.valueSerde()));
+
+    // TODO 3.1: create a new `KStream` called `payments` from
+    // `payments_original`, using `KStream#selectKey` to rekey on order id
+    // specified by `payment.getOrderId()` instead of payment id ...
+
+    // BEGIN solution 3.1
     final KStream<String, Payment> payments = builder.stream(PAYMENTS.name(),
         Consumed.with(PAYMENTS.keySerde(), PAYMENTS.valueSerde()))
         //Rekey payments to be by OrderId for the windowed join
         .selectKey((s, payment) -> payment.getOrderId());
+    // END solution 3.1
+
     final GlobalKTable<Long, Customer> customers = builder.globalTable(CUSTOMERS.name(),
         Consumed.with(CUSTOMERS.keySerde(), CUSTOMERS.valueSerde()));
 
@@ -100,20 +111,43 @@ public class EmailService implements Service {
     orders.join(payments, EmailTuple::new,
         //Join Orders and Payments streams
         JoinWindows.of(Duration.ofMinutes(1)), serdes)
-        //Next join to the GKTable of Customers
-        .join(customers,
+
+      // TODO 3.2: do a stream-table join with the customers table, which
+      // requires three arguments:
+
+      // 1) the GlobalKTable for the stream-table join
+
+      // 2) customer Id, specified by `order.getCustomerId()`, using a
+      // KeyValueMapper that gets the customer id from the tuple in the record's
+      // value
+
+      // 3) method that computes a value for the result record, in this case
+      // `EmailTuple::setCustomer`
+      // ...
+
+      // BEGIN solution 3.2
+      // Next join to the GKTable of Customers
+      .join(customers,
             (key1, tuple) -> tuple.order.getCustomerId(),
             // note how, because we use a GKtable, we can join on any attribute of the Customer.
             EmailTuple::setCustomer)
-        //Now for each tuple send an email.
-        .peek((key, emailTuple)
+      // END solution 3.2
+
+      // Now for each tuple send an email.
+      .peek((key, emailTuple)
             -> emailer.sendEmail(emailTuple)
-        );
+            );
 
     //Send the order to a topic whose name is the value of customer level
     orders.join(customers, (orderId, order) -> order.getCustomerId(), (order, customer) -> new OrderEnriched (order.getId(), order.getCustomerId(), customer.getLevel()))
-        //TopicNameExtractor to get the topic name (i.e., customerLevel) from the enriched order record being sent
-        .to((orderId, orderEnriched, record) -> orderEnriched.getCustomerLevel(), Produced.with(ORDERS_ENRICHED.keySerde(), ORDERS_ENRICHED.valueSerde()));
+      // TODO 3.3: route an enriched order record to a topic that is dynamically
+      // determined from the value of the customerLevel field of the
+      // corresponding customer ...
+
+      // BEGIN solution 3.3
+      // TopicNameExtractor to get the topic name (i.e., customerLevel) from the enriched order record being sent
+      .to((orderId, orderEnriched, record) -> orderEnriched.getCustomerLevel(), Produced.with(ORDERS_ENRICHED.keySerde(), ORDERS_ENRICHED.valueSerde()));
+      // END solution 3.3
 
     return new KafkaStreams(builder.build(),
             baseStreamsConfig(bootstrapServers, stateDir, SERVICE_APP_ID, defaultConfig));
