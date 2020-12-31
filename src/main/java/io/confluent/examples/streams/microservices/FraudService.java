@@ -88,8 +88,14 @@ public class FraudService implements Service {
     //Latch onto instances of the orders and inventory topics
     final StreamsBuilder builder = new StreamsBuilder();
     final KStream<String, Order> orders = builder
-        .stream(ORDERS.name(), Consumed.with(ORDERS.keySerde(), ORDERS.valueSerde()))
-        .filter((id, order) -> OrderState.CREATED.equals(order.getState()));
+      .stream(ORDERS.name(), Consumed.with(ORDERS.keySerde(), ORDERS.valueSerde()))
+      // TODO 4.1: filter this stream to include only orders in "CREATED" state,
+      // i.e., it should satisfy the predicate
+      // `OrderState.CREATED.equals(order.getState())`
+      // ...
+      // BEGIN solution 4.1
+      .filter((id, order) -> OrderState.CREATED.equals(order.getState()));
+    // END solution 4.1
 
     //Create an aggregate of the total value by customer and hold it with the order. We use session windows to
     // detect periods of activity.
@@ -110,10 +116,21 @@ public class FraudService implements Service {
         .selectKey((id, orderValue) -> orderValue.getOrder().getId());
 
     //Now branch the stream into two, for pass and fail, based on whether the windowed total is over Fraud Limit
+
+    // TODO 4.2: create a `KStream<String, OrderValue>` array from the
+    // `ordersWithTotals` stream by branching the records based on
+    // `OrderValue#getValue`
+    // 1. First branched stream: FRAUD_CHECK will fail for predicate where order
+    // value >= FRAUD_LIMIT
+    // 2. Second branched stream: FRAUD_CHECK will pass for predicate where
+    // order value < FRAUD_LIMIT
+    // ...
+    // BEGIN solution 4.2
     @SuppressWarnings("unchecked")
     final KStream<String, OrderValue>[] forks = ordersWithTotals.branch(
         (id, orderValue) -> orderValue.getValue() >= FRAUD_LIMIT,
         (id, orderValue) -> orderValue.getValue() < FRAUD_LIMIT);
+    // END solution 4.2
 
     forks[0].mapValues(
         orderValue -> new OrderValidation(orderValue.getOrder().getId(), FRAUD_CHECK, FAIL))
