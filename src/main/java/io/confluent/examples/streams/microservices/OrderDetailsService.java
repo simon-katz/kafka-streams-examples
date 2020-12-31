@@ -78,7 +78,15 @@ public class OrderDetailsService implements Service {
 
     try {
       final Map<TopicPartition, OffsetAndMetadata> consumedOffsets = new HashMap<>();
+
+      // TODO 2.1: subscribe the local `consumer` to a
+      // `Collections#singletonList` with the orders topic whose name is
+      // specified by `Topics.ORDERS.name()` ...
+
+      // BEGIN solution 2.1
       consumer.subscribe(singletonList(Topics.ORDERS.name()));
+      // END solution 2.1
+
       if (eosEnabled) {
         producer.initTransactions();
       }
@@ -92,9 +100,25 @@ public class OrderDetailsService implements Service {
           for (final ConsumerRecord<String, Order> record : records) {
             final Order order = record.value();
             if (OrderState.CREATED.equals(order.getState())) {
-              //Validate the order then send the result (but note we are in a transaction so
-              //nothing will be "seen" downstream until we commit the transaction below)
+              // Validate the order then send the result (but note we are in a
+              // transaction so nothing will be "seen" downstream until we commit
+              // the transaction below)
+
+              // TODO 2.2: validate the order using
+              // `OrderDetailsService#isValid` and save the validation result to
+              // type `OrderValidationResult` ...
+
+              // TODO 2.3: create a new record using
+              // `OrderDetailsService#result()` that takes the order and
+              // validation result ...
+
+              // TODO 2.4: produce the newly created record using the existing
+              // `producer` ...
+
+              // BEGIN solution 2.2, 2.3, 2.4
               producer.send(result(order, isValid(order) ? PASS : FAIL));
+              // END solution 2.2, 2.3, 2.4
+
               if (eosEnabled) {
                 recordOffset(consumedOffsets, record);
               }
