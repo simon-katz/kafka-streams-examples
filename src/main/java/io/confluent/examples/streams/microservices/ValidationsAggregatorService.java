@@ -105,7 +105,14 @@ public class ValidationsAggregatorService implements Service {
     //If all rules pass then validate the order
     validations
         .groupByKey(serdes3)
+
+        // TODO 5.1: window the data using `KGroupedStream#windowedBy`,
+        // specifically using `SessionWindows.with` to define 5-minute windows
+        // ...
+        // BEGIN solution 5.1
         .windowedBy(SessionWindows.with(Duration.ofMinutes(5)))
+        // END solution 5.1
+
         .aggregate(
             () -> 0L,
             (id, result, total) -> PASS.equals(result.getValidationResult()) ? total + 1 : total,
@@ -133,8 +140,18 @@ public class ValidationsAggregatorService implements Service {
                 newBuilder(order).setState(OrderState.FAILED).build(),
             JoinWindows.of(Duration.ofMinutes(5)), serdes7)
         //there could be multiple failed rules for each order so collapse to a single order
+
+        // TODO 5.2: group the records by key using `KStream#groupByKey`,
+        // providing the existing Serialized instance for ORDERS
+        // ...
+        // TODO 5.3: use an aggregation operator `KTable#reduce` to collapse the
+        // records in this stream to a single order for a given key
+        // ...
+        // BEGIN solution 5.2 & 5.3
         .groupByKey(serdes6)
         .reduce((order, v1) -> order)
+        // END solution 5.2 & 5.3
+
         //Push the validated order into the orders topic
         .toStream().to(ORDERS.name(), Produced.with(ORDERS.keySerde(), ORDERS.valueSerde()));
 
